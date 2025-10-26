@@ -1,0 +1,5 @@
+{
+  "name": "MIfoto.hu AI képszerkesztő",
+  "description": "Egy alkalmazás, amely lehetővé teszi a felhasználók számára, hogy szöveges utasításokkal képeket szerkesszenek a Gemini 2.5 Flash Image modell erejével.",
+  "requestFramePermissions": []
+}

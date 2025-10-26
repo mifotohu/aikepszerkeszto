@@ -43,10 +43,10 @@ const ApiKeySetupScreen: React.FC<{ onSelectKey: () => void }> = ({ onSelectKey 
           onClick={onSelectKey}
           className="w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105"
         >
-          API Kulcs Kiválasztása
+      API Kulcs Kiválasztása
         </button>
         <p className="text-xs text-text-secondary mt-4">
-          A szolgáltatás használata költségekkel járhat. További információért látogass el a{' '}
+          A szolgáltatás használata a Flash modellel ingyenes. További információért látogass el a{' '}
           <a
             href="https://ai.google.dev/gemini-api/docs/billing"
             target="_blank"

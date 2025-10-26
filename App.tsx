@@ -1,9 +1,23 @@
+
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { EditorControls } from './components/EditorControls';
 import { ImageViewer } from './components/ImageViewer';
 import { ApiKeyManager } from './components/ApiKeyManager';
 import { editImage } from './services/geminiService';
+import { SparklesIcon } from './components/icons';
+
+// A window.aistudio típusának deklarálása a TypeScript számára
+// FIX: Resolved a TypeScript declaration conflict by defining a named interface `AIStudio` for `window.aistudio`, as suggested by the error message.
+interface AIStudio {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
+declare global {
+  interface Window {
+    aistudio: AIStudio;
+  }
+}
 
 const DAILY_TOKEN_LIMIT = 1000000; // Ingyenes napi keret (példa)
 const TOKEN_STORAGE_KEY = 'mifoto_token_usage';
@@ -15,6 +29,39 @@ interface TokenUsage {
 
 type LoadingAction = 'generate' | 'upscale' | null;
 
+// Komponens az API kulcs beállításához
+const ApiKeySetupScreen: React.FC<{ onSelectKey: () => void }> = ({ onSelectKey }) => {
+  return (
+    <div className="min-h-screen bg-base-100 text-text-primary flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-base-200 p-8 rounded-lg shadow-lg text-center">
+        <SparklesIcon className="w-12 h-12 mx-auto text-brand-primary mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Üdv a MIfoto.hu Képszerkesztőben!</h1>
+        <p className="text-text-secondary mb-6">
+          Az alkalmazás használatához szükség van egy Google AI Studio API kulcsra. Kérjük, válassz egyet a folytatáshoz.
+        </p>
+        <button
+          onClick={onSelectKey}
+          className="w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105"
+        >
+          API Kulcs Kiválasztása
+        </button>
+        <p className="text-xs text-text-secondary mt-4">
+          A szolgáltatás használata költségekkel járhat. További információért látogass el a{' '}
+          <a
+            href="https://ai.google.dev/gemini-api/docs/billing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-brand-primary hover:underline"
+          >
+            Google AI számlázási oldalára
+          </a>.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+
 const App: React.FC = () => {
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [originalImage, setOriginalImage] = useState<string | null>(null);
@@ -22,12 +69,18 @@ const App: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isApiKeySet, setIsApiKeySet] = useState<boolean>(false);
+  const [hasSelectedKey, setHasSelectedKey] = useState<boolean>(false);
   const [tokensUsedToday, setTokensUsedToday] = useState<number>(0);
 
   useEffect(() => {
-    // The API key is expected to be available in the environment variables.
-    setIsApiKeySet(!!process.env.API_KEY);
+    // API kulcs ellenőrzése a `window.aistudio` segítségével
+    const checkApiKey = async () => {
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setHasSelectedKey(hasKey);
+      }
+    };
+    checkApiKey();
 
     // Token-használat betöltése a helyi tárolóból
     const storedUsage = localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -39,15 +92,21 @@ const App: React.FC = () => {
         if (parsedUsage.date === today) {
           setTokensUsedToday(parsedUsage.count);
         } else {
-          // Új nap, számláló nullázása
           localStorage.removeItem(TOKEN_STORAGE_KEY);
         }
       } catch (e) {
-        // Sérült adat, törlés
         localStorage.removeItem(TOKEN_STORAGE_KEY);
       }
     }
   }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Optimista frissítés a race condition elkerülése érdekében
+      setHasSelectedKey(true);
+    }
+  };
 
   const handleFileChange = (file: File | null) => {
     setOriginalFile(file);
@@ -65,7 +124,7 @@ const App: React.FC = () => {
   };
   
   const performImageEdit = async (promptToUse: string, action: NonNullable<LoadingAction>) => {
-    if (!originalFile || !promptToUse || !isApiKeySet) return;
+    if (!originalFile || !promptToUse || !hasSelectedKey) return;
 
     setLoadingAction(action);
     setEditedImage(null);
@@ -84,7 +143,13 @@ const App: React.FC = () => {
 
     } catch (err) {
       if (err instanceof Error) {
-        setError(err.message);
+        // Specifikus hibakezelés érvénytelen API kulcs esetére
+        if (err.message.includes('Requested entity was not found')) {
+            setError('Az API kulcs érvénytelennek tűnik, vagy nincs engedélyed a használatára. Kérlek, válassz egy másikat.');
+            setHasSelectedKey(false);
+        } else {
+            setError(err.message);
+        }
       } else {
         setError('Ismeretlen hiba történt a kép generálása során.');
       }
@@ -102,12 +167,17 @@ const App: React.FC = () => {
     performImageEdit(upscalePrompt, 'upscale');
   }
 
+  // Feltételes renderelés: ha nincs kulcs, a beállító képernyőt mutatjuk
+  if (!hasSelectedKey) {
+    return <ApiKeySetupScreen onSelectKey={handleSelectKey} />;
+  }
+
   return (
     <div className="min-h-screen bg-base-100 text-text-primary font-sans flex flex-col">
       <Header />
       <main className="container mx-auto px-4 md:px-8 py-8 flex-grow">
         <ApiKeyManager 
-            isApiKeySet={isApiKeySet} 
+            isApiKeySet={hasSelectedKey} 
             tokensUsed={tokensUsedToday}
             tokenLimit={DAILY_TOKEN_LIMIT}
         />
@@ -127,7 +197,7 @@ const App: React.FC = () => {
               onUpscale={handleUpscale}
               loadingAction={loadingAction}
               isFileSelected={!!originalFile}
-              isApiKeySet={isApiKeySet}
+              isApiKeySet={hasSelectedKey}
             />
           </div>
           <div className="lg:col-span-2">

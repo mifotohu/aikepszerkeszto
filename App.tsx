@@ -7,17 +7,9 @@ import { ApiKeyManager } from './components/ApiKeyManager';
 import { editImage } from './services/geminiService';
 import { SparklesIcon } from './components/icons';
 
-// A window.aistudio típusának deklarálása a TypeScript számára
-// FIX: Resolved a TypeScript declaration conflict by defining a named interface `AIStudio` for `window.aistudio`, as suggested by the error message.
-interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-declare global {
-  interface Window {
-    aistudio: AIStudio;
-  }
-}
+// Fix: Remove conflicting declaration for `window.aistudio`.
+// The global type should be provided by the environment, and re-declaring it here
+// was causing a conflict as reported by the TypeScript compiler.
 
 const DAILY_TOKEN_LIMIT = 1000000; // Ingyenes napi keret (példa)
 const TOKEN_STORAGE_KEY = 'mifoto_token_usage';
@@ -43,7 +35,7 @@ const ApiKeySetupScreen: React.FC<{ onSelectKey: () => void }> = ({ onSelectKey 
           onClick={onSelectKey}
           className="w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105"
         >
-      API Kulcs Kiválasztása
+          API Kulcs Kiválasztása
         </button>
         <p className="text-xs text-text-secondary mt-4">
           A szolgáltatás használata a Flash modellel ingyenes. További információért látogass el a{' '}
@@ -177,9 +169,9 @@ const App: React.FC = () => {
       <Header />
       <main className="container mx-auto px-4 md:px-8 py-8 flex-grow">
         <ApiKeyManager 
-            isApiKeySet={hasSelectedKey} 
             tokensUsed={tokensUsedToday}
             tokenLimit={DAILY_TOKEN_LIMIT}
+            onChangeKey={handleSelectKey}
         />
         {error && (
             <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">

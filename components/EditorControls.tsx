@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { UploadIcon, ScaleIcon } from './icons';
 
 interface EditorControlsProps {
@@ -32,13 +32,6 @@ export const EditorControls: React.FC<EditorControlsProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isLoading = loadingAction !== null;
-
-  useEffect(() => {
-    // A useEffect hook üres függőségi listával biztosítja, hogy a benne lévő kód
-    // csak azután fusson le, hogy a komponens teljesen betöltődött a DOM-ba.
-    // Ez megelőzi az olyan hibákat, ahol egy szkript egy még nem létező
-    // HTML elemen próbál műveletet végezni (pl. addEventListener).
-  }, []); // Az üres tömb biztosítja, hogy csak egyszer fusson le.
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

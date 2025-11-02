@@ -1,74 +1,64 @@
 import { GoogleGenAI, Modality } from '@google/genai';
 import { fileToGenerativePart } from '../utils/fileUtils';
 
-// As per guidelines, the API key must be obtained from `process.env.API_KEY`.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// This function creates a new client instance for each request,
+// ensuring the most up-to-date API key from the user is used.
+const getAiClient = (apiKey: string) => {
+  if (!apiKey) {
+    throw new Error("Nincs API kulcs beállítva. A funkció használatához add meg a Google AI Studio API kulcsodat az 'API Kulcs Beállítva' szekció 'Módosítás' gombjára kattintva.");
+  }
+  // As per guidelines, create a new GoogleGenAI instance right before making an API call.
+  return new GoogleGenAI({ apiKey });
+};
 
 export interface EditImageResult {
   imageUrl: string;
   tokensUsed: number;
 }
 
-const parseGeminiError = (error: Error): string => {
-    try {
-        const jsonStartIndex = error.message.indexOf('{');
-        if (jsonStartIndex === -1) {
-            return error.message.replace(/\n/g, '<br />'); 
+const parseGeminiError = (error: any): string => {
+    const errorMessage = (error?.message || String(error)).replace(/\n/g, '<br />');
+
+    // Check specifically for quota errors, which are the most common issue on public apps.
+    if (errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('429')) {
+        const mainMessage = "Meghaladtad a jelenlegi API kvótádat. Ez általában a ingyenes csomag korlátai miatt fordul elő. Kérjük, ellenőrizd a Google AI Studio beállításaidat, vagy próbálkozz később.";
+        let userMessage = `<p>${mainMessage}</p>`;
+
+        const retryMatch = errorMessage.match(/retryDelay":"(\d+s)"/);
+        if (retryMatch && retryMatch[1]) {
+            userMessage += `<p class="mt-1">Kérjük, próbáld újra <strong>${retryMatch[1].replace('s', ' másodperc')}</strong> múlva.</p>`;
         }
         
-        const jsonString = error.message.substring(jsonStartIndex);
-        const errorData = JSON.parse(jsonString);
-        
-        const apiError = errorData.error;
+        const links = [
+            `<a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-red-900">Tudj meg többet a Gemini API kvótákról</a>`,
+            `<a href="https://ai.dev/usage?tab=rate-limit" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-red-900">Használat ellenőrzése</a>`
+        ];
 
-        if (apiError && apiError.code === 429 && apiError.status === 'RESOURCE_EXHAUSTED') {
-            const mainMessage = "Meghaladtad a jelenlegi kvótádat. Kérjük, ellenőrizd a csomagodat és a számlázási adataidat.";
-            let userMessage = `<p>${mainMessage}</p>`;
+        userMessage += '<div class="mt-2"><p class="font-semibold">Hasznos linkek:</p><ul class="list-disc list-inside">';
+        links.forEach(link => {
+            userMessage += `<li>${link}</li>`;
+        });
+        userMessage += '</ul></div>';
 
-            const retryInfo = apiError.details?.find((d: any) => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
-            if (retryInfo && retryInfo.retryDelay) {
-                userMessage += `<p class="mt-1">Kérjük, próbáld újra <strong>${retryInfo.retryDelay}</strong> múlva.</p>`;
-            }
-
-            const links = [];
-            const helpLink = apiError.details?.find((d: any) => d['@type'] === 'type.googleapis.com/google.rpc.Help')?.links[0];
-            if (helpLink) {
-                links.push(`<a href="${helpLink.url}" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-red-900">Tudj meg többet a Gemini API kvótákról</a>`);
-            }
-            
-            const usageLinkMatch = apiError.message.match(/https:\/\/ai\.dev\/usage\?tab=rate-limit/);
-            if (usageLinkMatch) {
-                 links.push(`<a href="${usageLinkMatch[0]}" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-red-900">Használat ellenőrzése</a>`);
-            }
-
-            if (links.length > 0) {
-                userMessage += '<div class="mt-2"><p class="font-semibold">Hasznos linkek:</p><ul class="list-disc list-inside">';
-                links.forEach(link => {
-                    userMessage += `<li>${link}</li>`;
-                });
-                userMessage += '</ul></div>';
-            }
-
-            return userMessage;
-        }
-
-        if (apiError) {
-            return `API Hiba (${apiError.code}): ${apiError.message.replace(/\n/g, '<br />')}`;
-        }
-
-        return error.message.replace(/\n/g, '<br />');
-    } catch (e) {
-        // Fallback for parsing errors or other issues
-        return error.message.replace(/\n/g, '<br />');
+        return userMessage;
     }
+    
+    if (errorMessage.includes('API key not valid')) {
+        return "Érvénytelen API kulcs. Kérjük, ellenőrizd a megadott kulcsot, és győződj meg róla, hogy helyes és aktív.";
+    }
+
+    // Fallback for other generic errors
+    return errorMessage;
 };
 
 
 export const editImage = async (
   file: File,
-  prompt: string
+  prompt: string,
+  apiKey: string,
 ): Promise<EditImageResult> => {
   try {
+    const ai = getAiClient(apiKey);
     const { base64, mimeType } = await fileToGenerativePart(file);
 
     const imagePart = {
@@ -134,9 +124,6 @@ export const editImage = async (
 
   } catch (error) {
     console.error('Hiba a kép szerkesztése közben a Gemini API-val:', error);
-    if (error instanceof Error) {
-        throw new Error(parseGeminiError(error));
-    }
-    throw new Error('Kép generálása sikertelen egy ismeretlen hiba miatt.');
+    throw new Error(parseGeminiError(error));
   }
 };

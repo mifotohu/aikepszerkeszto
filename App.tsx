@@ -7,6 +7,8 @@ import { editImage } from './services/geminiService';
 
 const DAILY_TOKEN_LIMIT = 1000000; // Ingyenes napi keret (példa)
 const TOKEN_STORAGE_KEY = 'mifoto_token_usage';
+const API_KEY_STORAGE_KEY = 'mifoto_api_key';
+
 
 interface TokenUsage {
   count: number;
@@ -22,12 +24,17 @@ const App: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isApiKeySet, setIsApiKeySet] = useState<boolean>(false);
+  const [apiKey, setApiKey] = useState<string>('');
   const [tokensUsedToday, setTokensUsedToday] = useState<number>(0);
 
+  const isApiKeySet = !!apiKey;
+
   useEffect(() => {
-    // The API key is expected to be available in the environment variables.
-    setIsApiKeySet(!!process.env.API_KEY);
+    // API kulcs betöltése a helyi tárolóból
+    const storedApiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
+    }
 
     // Token-használat betöltése a helyi tárolóból
     const storedUsage = localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -48,6 +55,16 @@ const App: React.FC = () => {
       }
     }
   }, []);
+  
+  const handleSaveApiKey = (newKey: string) => {
+    const trimmedKey = newKey.trim();
+    setApiKey(trimmedKey);
+    localStorage.setItem(API_KEY_STORAGE_KEY, trimmedKey);
+    if (trimmedKey) {
+        setError(null); // Clear previous errors when a new key is set
+    }
+  };
+
 
   const handleFileChange = (file: File | null) => {
     setOriginalFile(file);
@@ -65,14 +82,19 @@ const App: React.FC = () => {
   };
   
   const performImageEdit = async (promptToUse: string, action: NonNullable<LoadingAction>) => {
-    if (!originalFile || !promptToUse || !isApiKeySet) return;
+    if (!originalFile || !promptToUse) return;
+    
+    if (!isApiKeySet) {
+        setError("A kép generálásához add meg a Google AI API kulcsodat az 'API Kulcs Beállítva' szekció 'Módosítás' gombjára kattintva.");
+        return;
+    }
 
     setLoadingAction(action);
     setEditedImage(null);
     setError(null);
 
     try {
-      const result = await editImage(originalFile, promptToUse);
+      const result = await editImage(originalFile, promptToUse, apiKey);
       setEditedImage(result.imageUrl);
       
       const newTotalTokens = tokensUsedToday + result.tokensUsed;
@@ -107,7 +129,8 @@ const App: React.FC = () => {
       <Header />
       <main className="container mx-auto px-4 md:px-8 py-8 flex-grow">
         <ApiKeyManager 
-            isApiKeySet={isApiKeySet} 
+            apiKey={apiKey}
+            onSaveApiKey={handleSaveApiKey}
             tokensUsed={tokensUsedToday}
             tokenLimit={DAILY_TOKEN_LIMIT}
         />

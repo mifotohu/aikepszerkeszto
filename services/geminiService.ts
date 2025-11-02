@@ -9,6 +9,61 @@ export interface EditImageResult {
   tokensUsed: number;
 }
 
+const parseGeminiError = (error: Error): string => {
+    try {
+        const jsonStartIndex = error.message.indexOf('{');
+        if (jsonStartIndex === -1) {
+            return error.message.replace(/\n/g, '<br />'); 
+        }
+        
+        const jsonString = error.message.substring(jsonStartIndex);
+        const errorData = JSON.parse(jsonString);
+        
+        const apiError = errorData.error;
+
+        if (apiError && apiError.code === 429 && apiError.status === 'RESOURCE_EXHAUSTED') {
+            const mainMessage = "Meghaladtad a jelenlegi kvótádat. Kérjük, ellenőrizd a csomagodat és a számlázási adataidat.";
+            let userMessage = `<p>${mainMessage}</p>`;
+
+            const retryInfo = apiError.details?.find((d: any) => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
+            if (retryInfo && retryInfo.retryDelay) {
+                userMessage += `<p class="mt-1">Kérjük, próbáld újra <strong>${retryInfo.retryDelay}</strong> múlva.</p>`;
+            }
+
+            const links = [];
+            const helpLink = apiError.details?.find((d: any) => d['@type'] === 'type.googleapis.com/google.rpc.Help')?.links[0];
+            if (helpLink) {
+                links.push(`<a href="${helpLink.url}" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-red-900">Tudj meg többet a Gemini API kvótákról</a>`);
+            }
+            
+            const usageLinkMatch = apiError.message.match(/https:\/\/ai\.dev\/usage\?tab=rate-limit/);
+            if (usageLinkMatch) {
+                 links.push(`<a href="${usageLinkMatch[0]}" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-red-900">Használat ellenőrzése</a>`);
+            }
+
+            if (links.length > 0) {
+                userMessage += '<div class="mt-2"><p class="font-semibold">Hasznos linkek:</p><ul class="list-disc list-inside">';
+                links.forEach(link => {
+                    userMessage += `<li>${link}</li>`;
+                });
+                userMessage += '</ul></div>';
+            }
+
+            return userMessage;
+        }
+
+        if (apiError) {
+            return `API Hiba (${apiError.code}): ${apiError.message.replace(/\n/g, '<br />')}`;
+        }
+
+        return error.message.replace(/\n/g, '<br />');
+    } catch (e) {
+        // Fallback for parsing errors or other issues
+        return error.message.replace(/\n/g, '<br />');
+    }
+};
+
+
 export const editImage = async (
   file: File,
   prompt: string
@@ -80,7 +135,7 @@ export const editImage = async (
   } catch (error) {
     console.error('Hiba a kép szerkesztése közben a Gemini API-val:', error);
     if (error instanceof Error) {
-        throw error;
+        throw new Error(parseGeminiError(error));
     }
     throw new Error('Kép generálása sikertelen egy ismeretlen hiba miatt.');
   }

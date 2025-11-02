@@ -113,8 +113,8 @@ const App: React.FC = () => {
         />
         {error && (
             <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
-                <strong className="font-bold">Hiba! </strong>
-                <span className="block sm:inline">{error}</span>
+                <strong className="font-bold block mb-2">Hiba!</strong>
+                <div className="text-sm" dangerouslySetInnerHTML={{ __html: error }} />
             </div>
         )}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">

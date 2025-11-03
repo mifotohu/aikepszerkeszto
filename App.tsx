@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import { Header } from './components/Header';
 import { EditorControls } from './components/EditorControls';
 import { ImageViewer } from './components/ImageViewer';
@@ -7,12 +7,9 @@ import { ApiKeyManager } from './components/ApiKeyManager';
 import { editImage } from './services/geminiService';
 import { SparklesIcon } from './components/icons';
 
-// Fix: Remove conflicting declaration for `window.aistudio`.
-// The global type should be provided by the environment, and re-declaring it here
-// was causing a conflict as reported by the TypeScript compiler.
-
-const DAILY_TOKEN_LIMIT = 1000000; // Ingyenes napi keret (példa)
+const DAILY_TOKEN_LIMIT = 1000000;
 const TOKEN_STORAGE_KEY = 'mifoto_token_usage';
+const API_KEY_STORAGE_KEY = 'mifoto_api_key';
 
 interface TokenUsage {
   count: number;
@@ -22,32 +19,70 @@ interface TokenUsage {
 type LoadingAction = 'generate' | 'upscale' | null;
 
 // Komponens az API kulcs beállításához
-const ApiKeySetupScreen: React.FC<{ onSelectKey: () => void }> = ({ onSelectKey }) => {
+const ApiKeySetupScreen: React.FC<{ onKeySubmit: (key: string) => void }> = ({ onKeySubmit }) => {
+  const [keyInput, setKeyInput] = useState('');
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (keyInput.trim()) {
+      onKeySubmit(keyInput.trim());
+    }
+  };
+
   return (
     <div className="min-h-screen bg-base-100 text-text-primary flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-base-200 p-8 rounded-lg shadow-lg text-center">
-        <SparklesIcon className="w-12 h-12 mx-auto text-brand-primary mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Üdv a MIfoto.hu Képszerkesztőben!</h1>
-        <p className="text-text-secondary mb-6">
-          Az alkalmazás használatához szükség van egy Google AI Studio API kulcsra. Kérjük, válassz egyet a folytatáshoz.
-        </p>
-        <button
-          onClick={onSelectKey}
-          className="w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105"
-        >
-          API Kulcs Kiválasztása
-        </button>
-        <p className="text-xs text-text-secondary mt-4">
-          A szolgáltatás használata a Flash modellel ingyenes. További információért látogass el a{' '}
-          <a
-            href="https://ai.google.dev/gemini-api/docs/billing"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-brand-primary hover:underline"
+      <div className="max-w-2xl w-full bg-base-200 p-8 rounded-lg shadow-lg">
+        <div className="text-center mb-6">
+          <SparklesIcon className="w-12 h-12 mx-auto text-brand-primary mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Google AI API Kulcs Szükséges</h1>
+          <p className="text-text-secondary">
+            Az alkalmazás működéséhez add meg a saját Google AI Studio API kulcsodat.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8 items-start">
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-text-primary">Miért van erre szükség?</h2>
+            <p className="text-sm text-text-secondary">
+              Az API kulcs egy egyedi azonosító, amellyel az alkalmazás hozzáférhet a Google mesterséges intelligencia (Gemini) modelljéhez. Gondolj rá úgy, mint egy jelszóra, amely lehetővé teszi, hogy az applikáció a te nevedben, a te kvótád terhére hajtson végre képszerkesztési műveleteket.
+            </p>
+            <p className="text-sm text-text-secondary">
+              A kulcsot <strong className="text-text-primary">nem tároljuk</strong> a szervereinken, csak a böngésződ memóriájában marad a munkamenet idejére.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-text-primary">Hogyan szerezz kulcsot?</h2>
+            <ol className="list-decimal list-inside text-sm text-text-secondary space-y-2">
+              <li>Látogass el a <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-primary font-semibold hover:underline">Google AI Studio</a> oldalra.</li>
+              <li>Kattints a <code className="bg-base-300 px-1 rounded text-xs">Create API key</code> gombra egy új projektben.</li>
+              <li>Másold ki a generált kulcsot.</li>
+              <li>Illeszd be az alábbi mezőbe.</li>
+            </ol>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-8">
+          <label htmlFor="api-key-input" className="block text-sm font-medium text-text-primary mb-2">
+            API Kulcs
+          </label>
+          <input
+            id="api-key-input"
+            type="password"
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            className="w-full bg-base-300 border border-base-300 rounded-lg p-3 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition duration-200"
+            placeholder="Illeszd be az API kulcsod..."
+            aria-label="Google AI API kulcs"
+          />
+          <button
+            type="submit"
+            disabled={!keyInput.trim()}
+            className="mt-4 w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105 disabled:bg-base-300 disabled:cursor-not-allowed disabled:scale-100"
           >
-            Google AI számlázási oldalára
-          </a>.
-        </p>
+            Mentés és Tovább
+          </button>
+        </form>
+
       </div>
     </div>
   );
@@ -61,18 +96,15 @@ const App: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hasSelectedKey, setHasSelectedKey] = useState<boolean>(false);
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [tokensUsedToday, setTokensUsedToday] = useState<number>(0);
 
   useEffect(() => {
-    // API kulcs ellenőrzése a `window.aistudio` segítségével
-    const checkApiKey = async () => {
-      if (window.aistudio) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasSelectedKey(hasKey);
-      }
-    };
-    checkApiKey();
+    // API kulcs betöltése a session storage-ból
+    const savedKey = sessionStorage.getItem(API_KEY_STORAGE_KEY);
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
 
     // Token-használat betöltése a helyi tárolóból
     const storedUsage = localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -92,12 +124,14 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleSelectKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      // Optimista frissítés a race condition elkerülése érdekében
-      setHasSelectedKey(true);
-    }
+  const handleKeySubmit = (newKey: string) => {
+    sessionStorage.setItem(API_KEY_STORAGE_KEY, newKey);
+    setApiKey(newKey);
+  };
+
+  const handleChangeKey = () => {
+    sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+    setApiKey(null);
   };
 
   const handleFileChange = (file: File | null) => {
@@ -116,14 +150,14 @@ const App: React.FC = () => {
   };
   
   const performImageEdit = async (promptToUse: string, action: NonNullable<LoadingAction>) => {
-    if (!originalFile || !promptToUse || !hasSelectedKey) return;
+    if (!originalFile || !promptToUse || !apiKey) return;
 
     setLoadingAction(action);
     setEditedImage(null);
     setError(null);
 
     try {
-      const result = await editImage(originalFile, promptToUse);
+      const result = await editImage(originalFile, promptToUse, apiKey);
       setEditedImage(result.imageUrl);
       
       const newTotalTokens = tokensUsedToday + result.tokensUsed;
@@ -137,8 +171,8 @@ const App: React.FC = () => {
       if (err instanceof Error) {
         // Specifikus hibakezelés érvénytelen API kulcs esetére
         if (err.message.includes('Requested entity was not found')) {
-            setError('Az API kulcs érvénytelennek tűnik, vagy nincs engedélyed a használatára. Kérlek, válassz egy másikat.');
-            setHasSelectedKey(false);
+            setError('Az API kulcs érvénytelennek tűnik. Kérlek, ellenőrizd, vagy adj meg egy újat.');
+            handleChangeKey(); // Rossz kulcs törlése
         } else {
             setError(err.message);
         }
@@ -159,9 +193,9 @@ const App: React.FC = () => {
     performImageEdit(upscalePrompt, 'upscale');
   }
 
-  // Feltételes renderelés: ha nincs kulcs, a beállító képernyőt mutatjuk
-  if (!hasSelectedKey) {
-    return <ApiKeySetupScreen onSelectKey={handleSelectKey} />;
+  // Ha nincs API kulcs, a beállító képernyőt mutatjuk
+  if (!apiKey) {
+    return <ApiKeySetupScreen onKeySubmit={handleKeySubmit} />;
   }
 
   return (
@@ -171,7 +205,7 @@ const App: React.FC = () => {
         <ApiKeyManager 
             tokensUsed={tokensUsedToday}
             tokenLimit={DAILY_TOKEN_LIMIT}
-            onChangeKey={handleSelectKey}
+            onChangeKey={handleChangeKey}
         />
         {error && (
             <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
@@ -189,7 +223,7 @@ const App: React.FC = () => {
               onUpscale={handleUpscale}
               loadingAction={loadingAction}
               isFileSelected={!!originalFile}
-              isApiKeySet={hasSelectedKey}
+              isApiKeySet={!!apiKey}
             />
           </div>
           <div className="lg:col-span-2">

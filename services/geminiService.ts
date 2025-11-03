@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Modality } from '@google/genai';
 import { fileToGenerativePart } from '../utils/fileUtils';
 
@@ -8,11 +9,12 @@ export interface EditImageResult {
 
 export const editImage = async (
   file: File,
-  prompt: string
+  prompt: string,
+  apiKey: string
 ): Promise<EditImageResult> => {
   try {
-    // A klienst közvetlenül a hívás előtt hozzuk létre, hogy a legfrissebb API kulcsot használja
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // A klienst közvetlenül a hívás előtt hozzuk létre a kapott API kulccsal
+    const ai = new GoogleGenAI({ apiKey });
 
     const { base64, mimeType } = await fileToGenerativePart(file);
 
@@ -81,7 +83,7 @@ export const editImage = async (
     console.error('Hiba a kép szerkesztése közben a Gemini API-val:', error);
     if (error instanceof Error) {
         // Hiba esetén ellenőrizzük, hogy API kulcs probléma-e
-        if (error.message.includes('API key not valid') || error.message.includes('permission')) {
+        if (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('was not found')) {
              throw new Error('Requested entity was not found'); // Átalakítjuk a hibát, hogy az App komponens kezelni tudja
         }
         throw error;

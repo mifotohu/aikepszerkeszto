@@ -10,11 +10,11 @@ export interface EditImageResult {
 export const editImage = async (
   file: File,
   prompt: string,
-  apiKey: string
 ): Promise<EditImageResult> => {
   try {
-    // A klienst közvetlenül a hívás előtt hozzuk létre a kapott API kulccsal
-    const ai = new GoogleGenAI({ apiKey });
+    // Az API kulcsot a futtató környezet biztosítja (process.env.API_KEY)
+    // miután a felhasználó kiválasztotta azt a standard dialógusablakban.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     const { base64, mimeType } = await fileToGenerativePart(file);
 
